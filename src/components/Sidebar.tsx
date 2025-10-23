@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Trophy,
   Star,
@@ -7,29 +8,91 @@ import {
   X,
   AlertCircle,
   Search,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft,
 } from "lucide-react";
 import clsx from "clsx";
 import { MENU_ITEMS } from "../constants";
 import { useAuth } from "../contexts/AuthContext";
 import { GlobalSearchModal } from "./GlobalSearchModal";
+import { MembershipService } from "../services/membershipService";
+import { SidebarClub } from "../types/membership";
 
 interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
   isOpen: boolean;
+  isCollapsed: boolean;
   onToggle: () => void;
+  onCollapseToggle: () => void;
 }
 
 export function Sidebar({
   currentView,
   onViewChange,
   isOpen,
+  isCollapsed,
   onToggle,
+  onCollapseToggle,
 }: SidebarProps) {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  
+  // Clubs state
+  const [clubs, setClubs] = useState<SidebarClub[]>([]);
+  const [loadingClubs, setLoadingClubs] = useState<boolean>(false);
+  const [showClubs, setShowClubs] = useState<boolean>(false);
+
+  // Load clubs from API
+  const loadClubs = async () => {
+    if (loadingClubs) return;
+    
+    setLoadingClubs(true);
+    try {
+      const clubsData = await MembershipService.getMembershipTree();
+      setClubs(clubsData);
+    } catch (error) {
+      console.error('❌ Error loading clubs:', error);
+      setClubs([]);
+    } finally {
+      setLoadingClubs(false);
+    }
+  };
+
+  const handleMenuClick = (id: string) => {
+    // Special handling for rooms (Phòng chat)
+    if (id === 'rooms') {
+      if (!showClubs) {
+        loadClubs();
+        setShowClubs(true);
+      } else {
+        setShowClubs(false);
+      }
+      return;
+    }
+    
+    // Special handling for chat-groups
+    if (id === 'chat-groups') {
+      navigate('/chat-groups');
+    } else {
+      navigate(`/${id}`);
+    }
+    onViewChange(id);
+    if (isOpen) {
+      onToggle();
+    }
+  };
+
+  const handleClubClick = (clubId: string) => {
+    navigate(`/clubs/${clubId}`);
+    if (isOpen) {
+      onToggle();
+    }
+  };
 
   const handleLogout = async (): Promise<void> => {
     setIsLoggingOut(true);
@@ -49,94 +112,170 @@ export function Sidebar({
     <>
       <div
         className={clsx(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-gray-800 border-r border-gray-700 transform transition-transform duration-300",
+          "fixed inset-y-0 left-0 z-40 bg-gray-800 border-r border-gray-700 transform transition-all duration-300",
+          isCollapsed ? "w-16" : "w-64",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Trophy className="w-5 h-5 text-white" />
+        <div className={clsx("border-b border-gray-700", isCollapsed ? "p-3" : "p-4")}>
+          {isCollapsed ? (
+            <div className="flex flex-col items-center space-y-2">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center w-8 h-8">
+                <Trophy className="w-4 h-4 text-white" />
+              </div>
+              <button
+                onClick={onCollapseToggle}
+                className="hidden lg:block p-1 rounded-lg hover:bg-gray-700 transition-colors"
+                aria-label="Mở rộng sidebar"
+              >
+                <ChevronRight className="w-4 h-4 text-white" />
+              </button>
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-white">SGH</h1>
-              <p className="text-xs text-gray-400">Student Gamer Hub</p>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center w-8 h-8">
+                  <Trophy className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold text-white">SGH</h1>
+                  <p className="text-xs text-gray-400">Student Gamer Hub</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={onCollapseToggle}
+                  className="hidden lg:block p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                  aria-label="Thu gọn sidebar"
+                >
+                  <ChevronLeft className="w-4 h-4 text-white" />
+                </button>
+                <button
+                  onClick={onToggle}
+                  className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                  aria-label="Đóng menu"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
-          </div>
-          <button
-            onClick={onToggle}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
-            aria-label="Đóng menu"
-          >
-            <X className="w-5 h-5 text-white" />
-          </button>
+          )}
         </div>
 
         {/* User Profile Card */}
-        <div className="p-4 border-b border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center">
-              <span className="text-sm font-bold text-white">
+        <div className={clsx("border-b border-gray-700", isCollapsed ? "p-3" : "p-4")}>
+          <div className={clsx("flex items-center", isCollapsed ? "justify-center" : "space-x-3")}>
+            <div className={clsx("bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center",
+              isCollapsed ? "w-8 h-8" : "w-10 h-10"
+            )}>
+              <span className={clsx("font-bold text-white", isCollapsed ? "text-xs" : "text-sm")}>
                 {user?.FullName?.charAt(0)?.toUpperCase() ||
                   user?.UserName?.charAt(0)?.toUpperCase() ||
                   "U"}
               </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-medium text-white truncate">
-                {user?.FullName || user?.UserName || "User"}
-              </h3>
-              <p className="text-xs text-gray-400 truncate">
-                {user?.University || user?.Email || "Student"}
-              </p>
-              <div className="flex items-center space-x-1 mt-1">
-                <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                <span className="text-xs text-yellow-400">
-                  Level {user?.Level || 1}
-                </span>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-medium text-white truncate">
+                  {user?.FullName || user?.UserName || "User"}
+                </h3>
+                <p className="text-xs text-gray-400 truncate">
+                  {user?.University || user?.Email || "Student"}
+                </p>
+                <div className="flex items-center space-x-1 mt-1">
+                  <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                  <span className="text-xs text-yellow-400">
+                    Level {user?.Level || 1}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Global Search */}
-        <div className="p-4 border-b border-gray-700">
-          <button
-            onClick={() => setShowSearchModal(true)}
-            className="w-full flex items-center space-x-3 px-3 py-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors group"
-          >
-            <Search className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 transition-colors" />
-            <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
-              Tìm kiếm bạn bè...
-            </span>
-          </button>
-        </div>
+        {!isCollapsed && (
+          <div className="p-4 border-b border-gray-700">
+            <button
+              onClick={() => setShowSearchModal(true)}
+              className="w-full flex items-center space-x-3 px-3 py-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors group"
+            >
+              <Search className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+              <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
+                Tìm kiếm bạn bè...
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Navigation Menu */}
-        <nav className="flex-1 p-4 overflow-y-auto">
+        <nav className={clsx("flex-1 overflow-y-auto", isCollapsed ? "p-2" : "p-4")}>
           <ul className="space-y-2">
             {MENU_ITEMS.map((item) => {
               const Icon = item.icon;
+              const isRooms = item.id === 'rooms';
+              
               return (
                 <li key={item.id}>
                   <button
-                    onClick={() => {
-                      onViewChange(item.id);
-                      if (isOpen) {
-                        onToggle();
-                      }
-                    }}
+                    onClick={() => handleMenuClick(item.id)}
                     className={clsx(
-                      "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
+                      "w-full flex items-center rounded-lg text-left transition-colors",
+                      isCollapsed ? "justify-center p-3" : "space-x-3 px-3 py-2",
                       currentView === item.id
                         ? "bg-indigo-600 text-white"
                         : "text-gray-300 hover:bg-gray-700 hover:text-white"
                     )}
+                    title={isCollapsed ? item.label : undefined}
                   >
-                    <Icon className="w-5 h-5" />
-                    <span className="text-sm font-medium">{item.label}</span>
+                    <Icon className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-5 h-5")} />
+                    {!isCollapsed && (
+                      <>
+                        <span className="text-sm font-medium flex-1">{item.label}</span>
+                        {isRooms && (
+                          showClubs ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )
+                        )}
+                      </>
+                    )}
                   </button>
+                  
+                  {/* Clubs list for rooms */}
+                  {isRooms && showClubs && !isCollapsed && (
+                    <div className="ml-6 mt-2 space-y-1">
+                      {loadingClubs ? (
+                        <div className="text-xs text-gray-400 px-3 py-2">
+                          Đang tải clubs...
+                        </div>
+                      ) : clubs.length > 0 ? (
+                        clubs.map((club) => (
+                          <button
+                            key={club.id}
+                            onClick={() => handleClubClick(club.id)}
+                            className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors text-gray-400 hover:bg-gray-700 hover:text-white"
+                          >
+                            <span className="text-lg">{club.avatar}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {club.name}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {club.roomsCount} phòng
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-400 px-3 py-2">
+                          Chưa tham gia club nào
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -144,8 +283,8 @@ export function Sidebar({
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-700">
-          <div className="flex space-x-2">
+        <div className={clsx("border-t border-gray-700", isCollapsed ? "p-2" : "p-4")}>
+          <div className={clsx("flex", isCollapsed ? "flex-col space-y-2" : "space-x-2")}>
             <button
               onClick={() => {
                 onViewChange("settings");
@@ -153,18 +292,25 @@ export function Sidebar({
                   onToggle();
                 }
               }}
-              className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              className={clsx(
+                "flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors",
+                isCollapsed ? "p-3" : "flex-1 space-x-2 px-3 py-2"
+              )}
+              title={isCollapsed ? "Cài đặt" : undefined}
             >
-              <Settings className="w-4 h-4" />
-              <span className="text-sm">Cài đặt</span>
+              <Settings className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-4 h-4")} />
+              {!isCollapsed && <span className="text-sm">Cài đặt</span>}
             </button>
             <button
               onClick={() => setShowLogoutModal(true)}
-              className="flex items-center justify-center px-3 py-2 text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
-              title="Đăng xuất"
+              className={clsx(
+                "flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors",
+                isCollapsed ? "p-3" : "px-3 py-2"
+              )}
+              title={isCollapsed ? "Đăng xuất" : undefined}
               aria-label="Đăng xuất"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-4 h-4")} />
             </button>
           </div>
         </div>
