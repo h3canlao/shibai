@@ -47,6 +47,9 @@ export class ChatService {
           skipNegotiation: false, // Allow negotiation for fallback
           // Remove transport restriction to allow all transports
           withCredentials: false, // Disable credentials to avoid CORS issues
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         })
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
         .configureLogging(2) // Debug level for more info
